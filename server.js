@@ -80,7 +80,7 @@ domain.run(function () {
         // });
 
         //exec('/usr/local/bin/check_asterisk -U sip:100@' + row.local_ip + ' -w 100 -c 200',
-        exec('/sbin/ping -c 1 ' + row.ipaddr,
+        exec('ping -c 1 ' + row.ipaddr,
           function (err, stdout, stderr) {
             if (err)  throw err;
 
