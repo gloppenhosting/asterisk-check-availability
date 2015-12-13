@@ -91,7 +91,7 @@ domain.run(function () {
             if (stdout)
             {
               // Check if we got a sip OK back
-              if (stdout.indexOf('0.0% packet loss') > -1) {
+              if (stdout.indexOf('0% packet loss') > -1) {
                 available = 1;
               }
 
