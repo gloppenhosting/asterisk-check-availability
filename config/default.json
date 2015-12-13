@@ -1,0 +1,14 @@
+{
+  "debug": true,
+  "update_interval_sec": 5,
+  "mysql": {
+    "host"     : "",
+    "user"     : "",
+    "password" : "",
+    "database" : ""
+  },
+  "asterisk": {
+    "iaxtable" : "iaxfriends"
+  }
+}
+
