@@ -82,47 +82,48 @@ domain.run(function () {
         //exec('/usr/local/bin/check_asterisk -U sip:100@' + row.local_ip + ' -w 100 -c 200',
         exec('ping -c 1 ' + row.local_ip,
           function (err, stdout, stderr) {
-            if (err)  throw err;
 
             //console.log('err: ' + err);
             //console.log('stdout: ' + stdout);
             //console.log('stderr: ' + stderr);
 
-            if (stdout)
-            {
+            if (stdout) {
               // Check if we got a sip OK back
               if (stdout.indexOf('0% packet loss') > -1) {
                 available = 1;
               }
+            }
 
-              // Check if local hash map knows about this host
-              if (!availabilities[row.name]) {
-                availabilities[row.name] = null;
+            if (stderr || err) {
+              available = 0;
+            }
+
+            // Check if local hash map knows about this host
+            if (!availabilities[row.name]) {
+              availabilities[row.name] = null;
+            }
+
+            // Availability changed, or run counter was divideable with 4. Lets update
+            if (availabilities[row.name] != available || check_counter % 4 == 0) {
+
+              var serverobj = {};
+              serverobj.available = available;
+              serverobj.available_last_check = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
+              if (available == 1) {
+                serverobj.available_last_seen = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
               }
 
-              // Availability changed, or run counter was divideable with 4. Lets update
-              if (availabilities[row.name] != available || check_counter % 4 == 0)
-              {
+              knex
+                .where('id', '=', row.id)
+                .update(serverobj)
+                .into(asterisk_config.get('iaxtable'))
+                .asCallback(function(err, rows) {
+                  if (err) throw err;
+                  if (debug)
+                    console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), 'Node:', row.name, '-', 'local ip:', row.local_ip, '-','public ip:', row.ipaddr, '-', 'available:', available);
 
-                var serverobj = {};
-                serverobj.available = available;
-                serverobj.available_last_check = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
-                if (available == 1) {
-                  serverobj.available_last_seen = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
-                }
-
-                knex
-                  .where('id', '=', row.id)
-                  .update(serverobj)
-                  .into(asterisk_config.get('iaxtable'))
-                  .asCallback(function(err, rows) {
-                    if (err) throw err;
-                    if (debug)
-                      console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), 'Node:', row.name, '-', 'local ip:', row.local_ip, '-','public ip:', row.ipaddr, '-', 'available:', available);
-
-                      availabilities[row.name] = available;
-                  });
-              }
+                    availabilities[row.name] = available;
+                });
             }
         });
 
