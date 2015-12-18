@@ -2,6 +2,7 @@ FROM mhart/alpine-node:4.1
 MAINTAINER Andreas Krüger
 ENV NODE_ENV production
 ENV NODE_DEBUG false 
+ENV NODE_CONFIG_STRICT_MODE false
 
 RUN apk add --update nodejs
 
