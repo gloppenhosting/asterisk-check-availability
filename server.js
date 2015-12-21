@@ -113,17 +113,20 @@ domain.run(function () {
                 serverobj.available_last_seen = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
               }
 
-              knex
+              knex.transaction(function(trx) {
+                knex
                 .where('id', '=', row.id)
                 .update(serverobj)
                 .into(asterisk_config.get('iaxtable'))
-                .asCallback(function(err, rows) {
-                  if (err) throw err;
-                  if (debug)
-                    console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), 'Node:', row.name, '-', 'local ip:', row.local_ip, '-','public ip:', row.ipaddr, '-', 'available:', available);
+                .then(trx.commit)
+                .catch(trx.rollback);
+              })
+              .then(function(resp) {
+                if (debug)
+                  console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), 'Node:', row.name, '-', 'local ip:', row.local_ip, '-','public ip:', row.ipaddr, '-', 'available:', available);
 
-                    availabilities[row.name] = available;
-                });
+                availabilities[row.name] = available;
+              });
             }
         });
 
