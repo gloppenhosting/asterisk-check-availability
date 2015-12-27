@@ -6,10 +6,9 @@ var moment = require('moment');
 var config = require('config');
 var mysql_config = config.get('mysql');
 var asterisk_config = config.get('asterisk');
-var client = require('ari-client');
-var exec = require('child_process').exec;
-var util = require('util');
+var net = require('net');
 var debug = process.env.NODE_DEBUG || config.get('debug') || true;
+
 var knex = require('knex')(
 {
   client: 'mysql2',
@@ -45,13 +44,46 @@ domain.run(function () {
 
     console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), 'Loading asterisk hosts from', asterisk_config.get('iaxtable'), 'to check availability on');
     knex
-    .select('id', 'name','ipaddr', 'manager_user','manager_password', 'local_ip')
+    .select('id', 'name','hostname', 'ari_user','ari_password')
     .from(asterisk_config.get('iaxtable'))
     .whereNot('name', hostname)
     .asCallback(function(err, rows) {
       if (err) throw err;
       hosts = rows;
     });
+  };
+
+  var update_availability = function(server_id, available) {
+    // Check if local hash map knows about this host
+    if (!availabilities[server_id]) {
+      availabilities[server_id] = null;
+    }
+
+    // Availability changed, or run counter was divideable with 4. Lets update
+    if (availabilities[server_id] != available || check_counter % 4 == 0) {
+
+      var serverobj = {};
+      serverobj.available = available;
+      serverobj.available_last_check = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
+      if (available == 1) {
+        serverobj.available_last_seen = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
+      }
+
+      knex.transaction(function(trx) {
+        knex
+        .where('id', '=', server_id)
+        .update(serverobj)
+        .into(asterisk_config.get('iaxtable'))
+        .then(trx.commit)
+        .catch(trx.rollback);
+      })
+      .then(function(resp) {
+        if (debug)
+          console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), 'Node ID:', server_id, '-', 'available:', available);
+
+        availabilities[server_id] = available;
+      });
+    }
   };
 
   // Check hosts for their availability
@@ -63,79 +95,32 @@ domain.run(function () {
     {
       hosts.forEach(function (row) {
 
-        var available = 0;
-        // console.log ('Checking host', row.name);
-        // client.connect('https://sip04-voip-aws-eu.publicdns.zone:8089', row.manager_user, 'oPNl8mGtWNBcWS6l',
-        // function (err, ari) {
-        //   if (err) throw err;
-        //   console.log(ari);
-        //
-        //   ari.asterisk.getInfo(function (err, asteriskinfo) {
-        //       if (err) throw err;
-        //       console.log(asteriskinfo)
-        //     }
-        //   );
-        //
-        //   console.log('Done checking');
-        // });
+        var socket = null;
+        socket = net.createConnection(18089, row.hostname);
+        socket.setTimeout(500);
 
-        //exec('/usr/local/bin/check_asterisk -U sip:100@' + row.local_ip + ' -w 100 -c 200',
-        exec('ping -c 3 ' + row.local_ip,
-          function (err, stdout, stderr) {
-
-            //console.log('err: ' + err);
-            //console.log('stdout: ' + stdout);
-            //console.log('stderr: ' + stderr);
-
-            if (stdout) {
-              // Check if we got a sip OK back
-              if (stdout.indexOf('0% packet loss') > -1) {
-                available = 1;
-              }
-            }
-
-            if (stderr || err) {
-              available = 0;
-            }
-
-            // Check if local hash map knows about this host
-            if (!availabilities[row.name]) {
-              availabilities[row.name] = null;
-            }
-
-            // Availability changed, or run counter was divideable with 4. Lets update
-            if (availabilities[row.name] != available || check_counter % 4 == 0) {
-
-              var serverobj = {};
-              serverobj.available = available;
-              serverobj.available_last_check = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
-              if (available == 1) {
-                serverobj.available_last_seen = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
-              }
-
-              knex.transaction(function(trx) {
-                knex
-                .where('id', '=', row.id)
-                .update(serverobj)
-                .into(asterisk_config.get('iaxtable'))
-                .then(trx.commit)
-                .catch(trx.rollback);
-              })
-              .then(function(resp) {
-                if (debug)
-                  console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), 'Node:', row.name, '-', 'local ip:', row.local_ip, '-','public ip:', row.ipaddr, '-', 'available:', available);
-
-                availabilities[row.name] = available;
-              });
-            }
+        socket
+        .on('connect', function()
+        {
+          update_availability(row.id, 1);
+          socket.end();
+          socket.destroy();
+        })
+        .on('error', function(error)
+        {
+          update_availability(row.id, 0);
+          socket.destroy();
+        })
+        .on('timeout',function()
+        {
+          update_availability(row.id, 0);
+          socket.destroy();
         });
 
       });
     }
     else {
-      if (check_counter == 0) {
         get_hosts();
-      }
     }
 
     // Check table for new hosts
@@ -156,9 +141,9 @@ domain.run(function () {
 
   // Start timer
   var lock = 0;
-  var update_timer = setInterval(function() {
-    check_hosts();
-  },
-  (config.get('update_interval_sec') * 1000)
-  );
+   var update_timer = setInterval(function() {
+     check_hosts();
+   },
+   (config.get('update_interval_sec') * 1000)
+   );
 });
