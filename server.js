@@ -107,8 +107,8 @@ domain.run(function () {
         .on('error', function(e) {
           update_availability(row.id, 0);
         });
-        
-        request.setTimeout( 10000, function( ) {
+
+        request.setTimeout( 700, function( ) {
           update_availability(row.id, 0);
         });
 
