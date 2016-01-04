@@ -6,9 +6,8 @@ var moment = require('moment');
 var config = require('config');
 var mysql_config = config.get('mysql');
 var asterisk_config = config.get('asterisk');
-var net = require('net');
 var debug = process.env.NODE_DEBUG || config.get('debug') || true;
-var tls = require('tls');
+var https = require('https');
 
 var knex = require('knex')(
 {
@@ -96,27 +95,45 @@ domain.run(function () {
     {
       hosts.forEach(function (row) {
 
-        var socket = null;
-        socket = tls.connect(18089, row.hostname);
-        socket.setTimeout(500);
-
-        socket
-        .on('connect', function()
-        {
-          update_availability(row.id, 1);
-          socket.end();
-          socket.destroy();
+        var request = https
+        .get('https://' + row.hostname + ':18089/httpstatus', function(res) {
+          if (res.statusCode == 200) {
+            update_availability(row.id, 1);
+          }
+          else {
+            update_availability(row.id, 0);
+          }
         })
-        .on('error', function(error)
-        {
+        .on('error', function(e) {
           update_availability(row.id, 0);
-          socket.destroy();
-        })
-        .on('timeout',function()
-        {
-          update_availability(row.id, 0);
-          socket.destroy();
         });
+        
+        request.setTimeout( 10000, function( ) {
+          update_availability(row.id, 0);
+        });
+
+        // var socket = null;
+        // socket = tls.connect(18089, row.hostname);
+        // socket.setTimeout(500);
+        //
+        // socket
+        // .on('connect', function()
+        // {
+        //   self.send({Action: 'login', Username : self.username, Secret : self.password, Events: (self.events ? 'on' : 'off')});
+        //   update_availability(row.id, 1);
+        //   socket.end();
+        //   socket.destroy();
+        // })
+        // .on('error', function(error)
+        // {
+        //   update_availability(row.id, 0);
+        //   socket.destroy();
+        // })
+        // .on('timeout',function()
+        // {
+        //   update_availability(row.id, 0);
+        //   socket.destroy();
+        // });
 
       });
     }
