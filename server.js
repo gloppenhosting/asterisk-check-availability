@@ -8,6 +8,7 @@ var mysql_config = config.get('mysql');
 var asterisk_config = config.get('asterisk');
 var net = require('net');
 var debug = process.env.NODE_DEBUG || config.get('debug') || true;
+var tls = require('tls');
 
 var knex = require('knex')(
 {
@@ -96,7 +97,7 @@ domain.run(function () {
       hosts.forEach(function (row) {
 
         var socket = null;
-        socket = net.createConnection(18089, row.hostname);
+        socket = tls.connect(18089, row.hostname);
         socket.setTimeout(500);
 
         socket
