@@ -1,4 +1,4 @@
-FROM mhart/alpine-node:4.1
+FROM mhart/alpine-node:5.3.0
 MAINTAINER Andreas Krüger
 ENV NODE_ENV production
 ENV NODE_DEBUG false 
