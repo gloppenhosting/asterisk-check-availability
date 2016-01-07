@@ -1,5 +1,5 @@
 {
-  "debug": true,
+  "debug": false,
   "update_interval_sec": 5,
   "mysql": {
     "host"     : "",
@@ -11,4 +11,3 @@
     "iaxtable" : "iaxfriends"
   }
 }
-

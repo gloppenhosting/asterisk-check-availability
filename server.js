@@ -22,8 +22,10 @@ var knex = require('knex')(
 
 // On any errors. Write them to console and exit program with error code
 domain.on('error', function (err) {
-    if (debug)
+    if (debug) {
       console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), err);
+    }
+
     process.exit(1);
 });
 
@@ -40,9 +42,11 @@ domain.run(function () {
 
     // Get all hosts we should check availability on, but now our self. This is to ring check all servers.
     // TODO: Change check strategy so all peers does not check all peers. This will cause alot of traffic when we scale.
-    // TODO: Put in knex transaction on this!
 
-    console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), 'Loading asterisk hosts from', asterisk_config.get('iaxtable'), 'to check availability on');
+    if (debug) {
+      console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), 'Loading asterisk hosts from', asterisk_config.get('iaxtable'), 'to check availability on');
+    }
+
     knex
     .select('id', 'name','hostname', 'ari_user','ari_password')
     .from(asterisk_config.get('iaxtable'))
@@ -65,8 +69,9 @@ domain.run(function () {
       var serverobj = {};
       serverobj.available = available;
       serverobj.available_last_check = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
+
       if (available == 1) {
-        serverobj.available_last_seen = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
+        serverobj.available_last_seen = serverobj.available_last_check
       }
 
       knex.transaction(function(trx) {
@@ -78,8 +83,9 @@ domain.run(function () {
         .catch(trx.rollback);
       })
       .then(function(resp) {
-        if (debug)
+        if (debug) {
           console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), 'Node ID:', server_id, '-', 'available:', available);
+        }
 
         availabilities[server_id] = available;
       });
@@ -108,32 +114,9 @@ domain.run(function () {
           update_availability(row.id, 0);
         });
 
-        request.setTimeout( 700, function( ) {
+        request.setTimeout( 500, function( ) {
           update_availability(row.id, 0);
         });
-
-        // var socket = null;
-        // socket = tls.connect(18089, row.hostname);
-        // socket.setTimeout(500);
-        //
-        // socket
-        // .on('connect', function()
-        // {
-        //   self.send({Action: 'login', Username : self.username, Secret : self.password, Events: (self.events ? 'on' : 'off')});
-        //   update_availability(row.id, 1);
-        //   socket.end();
-        //   socket.destroy();
-        // })
-        // .on('error', function(error)
-        // {
-        //   update_availability(row.id, 0);
-        //   socket.destroy();
-        // })
-        // .on('timeout',function()
-        // {
-        //   update_availability(row.id, 0);
-        //   socket.destroy();
-        // });
 
       });
     }
@@ -151,8 +134,9 @@ domain.run(function () {
     lock = 0;
   };
 
-  if (debug)
+  if (debug) {
     console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), 'Will check availability of asterisk nodes every', config.get('update_interval_sec'), 'seconds');
+  }
 
   // Lets update on first run!
   check_hosts();
