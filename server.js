@@ -51,9 +51,11 @@ domain.run(function () {
     .select('id', 'name','hostname', 'ari_user','ari_password')
     .from(asterisk_config.get('iaxtable'))
     .whereNot('name', hostname)
-    .asCallback(function(err, rows) {
-      if (err) throw err;
+    .then(function(rows) {
       hosts = rows;
+    })
+    .catch(function(err) {
+      throw err;
     });
   };
 
