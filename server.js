@@ -51,6 +51,7 @@ domain.run(function () {
     .select('id', 'name','hostname', 'ari_user','ari_password')
     .from(asterisk_config.get('iaxtable'))
     .whereNot('name', hostname)
+    .where('name', 'odn1-voip-cluster03-upstream02')
     .then(function(rows) {
       hosts = rows;
     })
@@ -67,22 +68,20 @@ domain.run(function () {
 
     // Availability changed, or run counter was divideable with 4. Lets update
     if (availabilities[server_id] != available || check_counter % 4 == 0) {
-
-      var serverobj = {};
-      serverobj.available = available;
-      serverobj.available_last_check = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
-
-      if (available == 1) {
-        serverobj.available_last_seen = serverobj.available_last_check
-      }
-
       knex.transaction(function(trx) {
-        knex
-        .where('id', '=', server_id)
-        .update(serverobj)
-        .into(asterisk_config.get('iaxtable'))
-        .then(trx.commit)
-        .catch(trx.rollback);
+        var timestamp = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
+
+        if (available == 1) {
+          knex
+          .raw('UPDATE ' + asterisk_config.get('iaxtable') + ' SET available = available + 1, available_last_check = \'' + timestamp + '\', available_last_seen = \'' + timestamp + '\' WHERE id = ' + server_id + ' AND available <= 3')
+          .then(trx.commit)
+          .catch(trx.rollback);
+        } else {
+          knex
+          .raw('UPDATE ' + asterisk_config.get('iaxtable') + ' SET available = available - 1, available_last_check = \'' + timestamp + '\' WHERE id = ' + server_id + ' AND available >= 0')
+          .then(trx.commit)
+          .catch(trx.rollback);
+        }
       })
       .then(function(resp) {
         if (debug) {
@@ -116,7 +115,7 @@ domain.run(function () {
           update_availability(row.id, 0);
         });
 
-        request.setTimeout( 500, function( ) {
+        request.setTimeout( 600, function( ) {
           update_availability(row.id, 0);
         });
 
