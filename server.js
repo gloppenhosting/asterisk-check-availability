@@ -51,7 +51,6 @@ domain.run(function () {
     .select('id', 'name','hostname', 'ari_user','ari_password')
     .from(asterisk_config.get('iaxtable'))
     .whereNot('name', hostname)
-    .where('name', 'odn1-voip-cluster03-upstream02')
     .then(function(rows) {
       hosts = rows;
     })
