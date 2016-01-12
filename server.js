@@ -72,12 +72,22 @@ domain.run(function () {
 
         if (available == 1) {
           knex
-          .raw('UPDATE ' + asterisk_config.get('iaxtable') + ' SET available = available + 1, available_last_check = \'' + timestamp + '\', available_last_seen = \'' + timestamp + '\' WHERE id = ' + server_id + ' AND available < 3')
+          .raw('UPDATE ' + asterisk_config.get('iaxtable') + ' SET available = available + 1 WHERE id = ' + server_id + ' AND available < 3')
+          .then(trx.commit)
+          .catch(trx.rollback);
+
+          knex
+          .raw('UPDATE ' + asterisk_config.get('iaxtable') + ' SET available_last_check = \'' + timestamp + '\', available_last_seen = \'' + timestamp + '\' WHERE id = ' + server_id)
           .then(trx.commit)
           .catch(trx.rollback);
         } else {
           knex
-          .raw('UPDATE ' + asterisk_config.get('iaxtable') + ' SET available = available - 1, available_last_check = \'' + timestamp + '\' WHERE id = ' + server_id + ' AND available > 0')
+          .raw('UPDATE ' + asterisk_config.get('iaxtable') + ' SET available = available - 1 WHERE id = ' + server_id + ' AND available > 0')
+          .then(trx.commit)
+          .catch(trx.rollback);
+
+          knex
+          .raw('UPDATE ' + asterisk_config.get('iaxtable') + ' SET available_last_check = \'' + timestamp + '\' WHERE id = ' + server_id)
           .then(trx.commit)
           .catch(trx.rollback);
         }
