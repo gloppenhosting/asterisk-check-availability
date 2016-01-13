@@ -4,6 +4,7 @@ var domain = require('domain').create();
 var os = require('os');
 var moment = require('moment');
 var config = require('config');
+var ip = require("ip");
 var mysql_config = config.get('mysql');
 var asterisk_config = config.get('asterisk');
 var debug = process.env.NODE_DEBUG || config.get('debug') || true;
@@ -31,131 +32,83 @@ domain.on('error', function (err) {
 
 // Encapsulate it all into a domain to catch all errors
 domain.run(function () {
-
-  var hosts = null;
-  var availabilities = [];
   var check_counter = 0;
-
-  var get_hosts = function(callback) {
-    // Grab hostname of our self!
-    var hostname = os.hostname();
-
-    // Get all hosts we should check availability on, but now our self. This is to ring check all servers.
-    // TODO: Change check strategy so all peers does not check all peers. This will cause alot of traffic when we scale.
-
-    if (debug) {
-      console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), 'Loading asterisk hosts from', asterisk_config.get('iaxtable'), 'to check availability on');
-    }
-
-    knex
-    .select('id', 'name','hostname', 'ari_user','ari_password')
-    .from(asterisk_config.get('iaxtable'))
-    .whereNot('name', hostname)
-    .then(function(rows) {
-      hosts = rows;
-    })
-    .catch(function(err) {
-      throw err;
-    });
-  };
+  var lock = 0; // mutex lock
 
   var update_availability = function(server_id, available) {
-    // Check if local hash map knows about this host
-    if (!availabilities[server_id]) {
-      availabilities[server_id] = null;
-    }
+    check_counter++;
 
     // Availability changed, or run counter was divideable with 4. Lets update
-    if (availabilities[server_id] != available || check_counter % 4 == 0) {
+    if (available == 1 || (check_counter % 30 == 0 && available == 0)) {
+
       knex.transaction(function(trx) {
-        var timestamp = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
+        var serverobj = {};
+        serverobj.available = 1;
+        serverobj.available_last_check = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
+        serverobj.available_last_seen = serverobj.available_last_check
 
-        if (available == 1) {
-          knex
-          .raw('UPDATE ' + asterisk_config.get('iaxtable') + ' SET available = available + 1 WHERE id = ' + server_id + ' AND available < 3')
-          .then(trx.commit)
-          .catch(trx.rollback);
-
-          knex
-          .raw('UPDATE ' + asterisk_config.get('iaxtable') + ' SET available_last_check = \'' + timestamp + '\', available_last_seen = \'' + timestamp + '\' WHERE id = ' + server_id)
-          .then(trx.commit)
-          .catch(trx.rollback);
-        } else {
-          knex
-          .raw('UPDATE ' + asterisk_config.get('iaxtable') + ' SET available = available - 1 WHERE id = ' + server_id + ' AND available > 0')
-          .then(trx.commit)
-          .catch(trx.rollback);
-
-          knex
-          .raw('UPDATE ' + asterisk_config.get('iaxtable') + ' SET available_last_check = \'' + timestamp + '\' WHERE id = ' + server_id)
-          .then(trx.commit)
-          .catch(trx.rollback);
-        }
+        knex
+        .where('name', '=', server_id)
+        .update(serverobj)
+        .into(asterisk_config.get('iaxtable'))
+        .then(trx.commit)
+        .catch(trx.rollback);
       })
       .then(function(resp) {
         if (debug) {
-          console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), 'Node ID:', server_id, '-', 'available:', available);
+          console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), 'Node Name:', server_id, '-', 'available: 1');
         }
 
-        availabilities[server_id] = available;
+        check_counter = 0;
+        lock = 0;
       });
+    }
+    else {
+      // Release lock
+      lock = 0;
     }
   };
 
   // Check hosts for their availability
-  var check_hosts = function() {
+  var check_host = function() {
     if (lock == 1) return;
 
+    // Mutex lock
     lock = 1;
-    if (hosts != null && hosts.length > 0)
-    {
-      hosts.forEach(function (row) {
 
-        var request = https
-        .get('https://' + row.hostname + ':18089/httpstatus', function(res) {
-          if (res.statusCode == 200) {
-            update_availability(row.id, 1);
-          }
-          else {
-            update_availability(row.id, 0);
-          }
-        })
-        .on('error', function(e) {
-          update_availability(row.id, 0);
-        });
+    // Alow to connect with HTTPS TLS to the path without the certs matching
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    var hostname = os.hostname();
 
-        request.setTimeout( 600, function( ) {
-          update_availability(row.id, 0);
-        });
+    var request = https
+    .get('https://' + ip.address() + ':18089/httpstatus', function(res) {
+      if (res.statusCode == 200) {
+        update_availability(hostname, 1);
+      }
+      else {
+        update_availability(hostname, 0);
+      }
+    })
+    .on('error', function(e) {
+      update_availability(hostname, 0);
+    });
 
-      });
-    }
-    else {
-        get_hosts();
-    }
-
-    // Check table for new hosts
-    if (check_counter == 20) {
-      get_hosts();
-      check_counter = 0;
-    }
-
-    check_counter++;
-    lock = 0;
+    // Fail if the https makes a timeout
+    request.setTimeout( 600, function( ) {
+      update_availability(hostname, 0);
+    });
   };
 
   if (debug) {
-    console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), 'Will check availability of asterisk nodes every', config.get('update_interval_sec'), 'seconds');
+    console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), 'Will check availability of the asterisk node every', config.get('update_interval_sec'), 'seconds');
   }
 
   // Lets update on first run!
-  check_hosts();
+  check_host();
 
   // Start timer
-  var lock = 0;
-   var update_timer = setInterval(function() {
-     check_hosts();
-   },
-   (config.get('update_interval_sec') * 1000)
-   );
+  var update_timer = setInterval(function() {
+     check_host();
+  },
+  (config.get('update_interval_sec') * 1000));
 });
