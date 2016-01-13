@@ -1,6 +1,6 @@
 {
   "debug": false,
-  "update_interval_sec": 5,
+  "update_interval_sec": 1,
   "mysql": {
     "host"     : "",
     "user"     : "",
