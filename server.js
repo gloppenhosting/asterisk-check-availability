@@ -47,7 +47,7 @@ domain.run(function () {
         serverobj.available_last_check = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
         serverobj.available_last_seen = serverobj.available_last_check
 
-        knex
+        trx
         .where('name', '=', server_id)
         .update(serverobj)
         .into(asterisk_config.get('iaxtable'))
