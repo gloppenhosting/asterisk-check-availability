@@ -61,6 +61,13 @@ domain.run(function () {
 
         check_counter = 0;
         lock = 0;
+      })
+      .catch(function(err) {
+        if (debug) {
+          console.error(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), err);
+        }
+
+        lock = 0;
       });
     }
     else {
