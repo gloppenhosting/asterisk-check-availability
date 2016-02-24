@@ -20,8 +20,11 @@ var knex = require('knex')(
     database : (process.env.MYSQL_DB || mysql_config.get('database') || 'asterisk')
   },
   pool: {
+      ping: function(connection, callback) {
+          connection.query({text: 'SELECT 1 = 1'}, [], callback);
+      },
       min: 1,
-      max: 1
+      max: 2
   }
 });
 
@@ -72,6 +75,7 @@ domain.run(function () {
         }
 
         lock = 0;
+        throw new Error('Something bad happened to the transaction', err);
       });
     }
     else {
