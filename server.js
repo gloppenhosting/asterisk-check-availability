@@ -20,7 +20,9 @@ var knex = require('knex')(
     database : (process.env.MYSQL_DB || mysql_config.get('database') || 'asterisk')
   },
   pool: {
-      
+      ping: function(connection, callback) {
+          connection.query({sql: 'SELECT 1 = 1'}, [], callback);
+      },
       min: 1,
       max: 2
   }
@@ -61,7 +63,7 @@ domain.run(function () {
       })
       .then(function(resp) {
         if (debug) {
-          console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), 'Node Name:', server_id, '-', 'available: 1');
+          console.log(moment(new Date()).format("YYYY-MM-DD HH:mm:ss"), 'Node Name:', server_id, '-', 'available:', available);
         }
 
         check_counter = 0;
