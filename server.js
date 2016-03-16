@@ -156,8 +156,6 @@ domain.run(function() {
 
                         });
                     });
-
-                    ami = null;
                 });
 
             })
