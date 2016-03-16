@@ -119,7 +119,7 @@ domain.run(function() {
         knex
             .select('send_registrations.id', 'send_registrations.ps_registrations_id','iaxfriends.manager_user','iaxfriends.manager_password','iaxfriends.local_ip')
             .from('send_registrations')
-            .innerJoin('iaxfriends', 'send_registrations.iaxfriends_name', 'iaxfriends.name')
+            .innerJoin('iaxfriends', 'send_registrations.iaxfriends_id', 'iaxfriends.id')
             .where('iaxfriends.name', hostname)
             .orderBy('send_registrations.created', 'asc')
             .limit(1)
