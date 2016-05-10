@@ -10,6 +10,7 @@ var asterisk_config = config.get('asterisk');
 var debug = process.env.NODE_DEBUG || config.get('debug') || true;
 var https = require('https');
 var AMI = require('./ami');
+var heartBeatInterval = null;
 
 var knex = require('knex')({
     client: 'mysql2',
@@ -41,6 +42,22 @@ domain.on('error', function(err) {
 
 // Encapsulate it all into a domain to catch all errors
 domain.run(function() {
+    if (heartBeatInterval) {
+        clearInterval(heartBeatInterval)
+        heartBeatInterval = null;
+    }
+
+    heartBeatInterval = setInterval(function() {
+        knex.raw('SELECT 1=1')
+            .then(function() {
+                //  log.info('heartbeat sent');
+            })
+            .catch(function(err) {
+                console.error('Knex heartbeat error, shutting down', err);
+                process.exit(1);
+            })
+    }, 10000);
+
     var check_counter = 0;
     var lock = 0; // mutex lock
 
