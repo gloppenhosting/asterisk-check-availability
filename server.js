@@ -68,7 +68,7 @@ domain.run(function() {
         if (available == 1 || (check_counter % 30 == 0 && available == 0)) {
             knex.transaction(function(trx) {
                     var serverobj = {};
-                    serverobj.available = 1;
+                    serverobj.available = available;
                     serverobj.available_last_check = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
                     serverobj.available_last_seen = serverobj.available_last_check
 
