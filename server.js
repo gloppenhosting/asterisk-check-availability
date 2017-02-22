@@ -70,7 +70,9 @@ domain.run(function() {
                     var serverobj = {};
                     serverobj.available = available;
                     serverobj.available_last_check = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
-                    serverobj.available_last_seen = serverobj.available_last_check
+                    if (available == 1) {
+                        serverobj.available_last_seen = serverobj.available_last_check
+                    }
 
                     trx
                         .where('name', '=', server_id)
